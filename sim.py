@@ -9,20 +9,20 @@ np.random.seed(1234)
 
 MEBI = 1024*1024
 GIBI = 1024*MEBI
+MEGA = 1e6
 GIGA = 1e9
 
-# in ms
-g_rootlog = '/macierz/home/s160690/masters/examples-dist/meas/erty-sim/resnet50/ring/ranks8/bs1024/0/'
-g_bandwidth_avg = 771.107*MEBI/8/1000
+# config
+g_rootlog = '/macierz/home/s160690/masters/examples-dist/meas/erty-sim/resnet50/ring/ranks8/bs1024/4/'
 g_latency_avg = 0.24886
 g_datasize = 25_557_032*4
-'''
+g_datasize = MEBI*4
 g_bandwidth_avg = [ [779.30, 48.49, 48.49, 96.85],
                     [48.49, 780.66, 96.92, 48.49],
                     [48.49, 96.87, 780.86, 48.49],
                     [96.88, 48.49, 48.48, 779.89]]
-g_bandwidth_avg = np.array(g_bandwidth_avg)*GIGA/1000
-'''
+g_bandwidth_avg = np.array(g_bandwidth_avg)*GIBI/1000
+g_bandwidth_avg = 808.56*MEGA/8/1000
 
 def test_redop(x1, x2):
     return x1 + x2
@@ -53,9 +53,17 @@ class DurationModel:
         return dm
 
     @classmethod
-    def createOneRandomDist(cls, P):
+    def createOneRandomDist(cls, P, n, delay, maxDelay):
         dm = DurationModel()
         dm.P = P
+        dm.dataComp = []
+        for it in range(P):
+            if it == 1:
+                dm.dataComp.append(iter(list(np.full((n,), maxDelay+delay))))
+            else:
+                dm.dataComp.append(iter(list(np.full((n,), delay))))
+        dm.init_tau()
+        dm.len = n
         return dm
 
     def timeSegmentTransfer(self, src, dst):
@@ -68,11 +76,6 @@ class DurationModel:
 
     def timeComputation(self, node):
         return next(self.dataComp[node])
-        idk = np.random.choice(list(range(self.P)))
-        if idk == node:
-            return 100 + 100
-        else:
-            return 100
 
     def __len__(self):
         return self.len
@@ -108,14 +111,14 @@ class Node:
         self.next_q.put((self.duration, self.test_data[test_segid]))
 
     def durate(self, duration, delay):
-        if self.duration < duration+duration:
-            self.duration = duration + delay
-        return
         if self.duration < duration:
             self.duration = duration + delay
         else:
             self.duration += delay
         return 
+        if self.duration < duration+duration:
+            self.duration = duration + delay
+        return
 
     def receive_and_reduce_b(self, test_segid):
         duration, test_piece = self.prev_q.get()
@@ -240,13 +243,14 @@ class Node:
             assert [sum(range(1, self.dm.P+1)) for i in range(self.dm.P)] == self.test_data, "Reduction error."
             self.test_data = [ self.idk_init+1 for _ in range(self.dm.P) ]
             self.arrivalsBarrier.wait()
-            
+ 
         print(self.idk_init, self.ops, self.duration)
         self.f.close()
 
 def run(prr=True):
     ns = []
-    dm = DurationModel.createFromFile("1024.txt")
+    #dm = DurationModel.createFromFile("1024.txt")
+    dm = DurationModel.createOneRandomDist(30, 1000, 100, 100)
     qs = [ [ mp.Queue() for _ in range(dm.P) ] for _ in range(dm.P) ]
     next_qs = qs
     prev_qs = [qs[-1]] + qs[:-1]
