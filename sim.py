@@ -125,16 +125,16 @@ class Node:
         self.prev_q = self.cqueues[(self.idk+self.dm.P-1)%self.dm.P][self.idk]
 
 ### Communication primitives
-    def durate(self, duration, delay):
+    def durateRDMA(self, duration, delay):
         if self.duration < duration+delay:
             self.duration = duration + delay
-        return
+
+    def durateNormal(self, duration, delay):
         if self.duration < duration:
             self.duration = duration + delay
         else:
             self.duration += delay
         return
-#### cluster env
     def send_nb(self, test_segid):
         self.next_q.put((self.duration, self.test_data[test_segid]))
 
